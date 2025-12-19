@@ -1,2 +1,53 @@
 # Zoho-Sign-Signed-Document-Attachment-to-Zoho-CRM-Account
 This script runs on a Zoho flow workflow after a document is signed. It downloads the signed PDF, searches the related Contact in Zoho CRM using the recipient email, retrieves the linked Account, and attaches the signed document to the Account record for centralized document storage.
+
+
+
+
+
+// Fetch recipient email from Zoho Sign webhook payload
+actionsData = payload.getJSON("actions");
+customerEmail = actionsData.getJSON("recipient_email");
+info customerEmail;
+
+// Get Zoho Sign request (document) ID
+documentId = payload.getJSON("request_id");
+
+// Download signed PDF from Zoho Sign
+signedDocument = invokeurl
+[
+	url :"https://sign.zoho.com.au/api/v1/requests/" + documentId + "/pdf"
+	type :GET
+	connection:"zoho_sign"
+];
+info signedDocument;
+
+// Search CRM Contact using recipient email
+searchedContacts = zoho.crm.searchRecords(
+	"Contacts",
+	"(Email:equals:" + customerEmail + ")",
+	1,
+	200,
+	"zoho_crm"
+);
+
+// Continue only if a matching contact is found
+if(searchedContacts.size() > 0)
+{
+	contactData = searchedContacts.get(0);
+	contactId = contactData.getJSON("id");
+	accountId = contactData.getJSON("Account_Name").getJSON("id");
+
+	// Attach signed document to the related Account
+	signedDocument.setParamName("file");
+
+	attachmentResponse = invokeurl
+	[
+		url :"https://www.zohoapis.com.au/crm/v6/accounts/" + accountId + "/Attachments"
+		type :POST
+		files:signedDocument
+		connection:"zoho_crm"
+	];
+
+	info attachmentResponse;
+}
